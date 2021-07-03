@@ -1,7 +1,7 @@
 /*
- * main.c
+ * main.cpp
  *
- * Copyright (c) 2018 Yulay Rakhmangulov.
+ * Copyright (c) 2021 Yulay Rakhmangulov.
  *
  * Schematics and PCB design can be found here:
  *       https://easyeda.com/Yulay/nissan-cd-changer-emulator
@@ -26,29 +26,25 @@
 #include <stdnoreturn.h>
 
 #ifndef F_CPU
-    #define F_CPU   8000000
+    #define F_CPU   1000000
 #endif
 
 #include <avr/io.h>
 #include <avr/iotn85.h>
-#include <avr/wdt.h>
 #include <avr/interrupt.h>
 
 
 #include "main.hpp"
 
 void setup();
-void WDTimer_Init();
 
 static uint8_t gPrevInput;
 
-static volatile uint8_t gPwmReady;
 static volatile uint8_t gTwoOneMode;
 
 static volatile uint8_t gTime;
 
-static uint8_t gPwmStart;
-static volatile uint8_t gPwmValue;
+static volatile uint8_t gSpeedSet;
 
 
 
@@ -61,130 +57,77 @@ ISR( PCINT0_vect )
 
 	gPrevInput = val;
 
-	if(change & PWM_input)
+	if(change & TwoOne_Switch)
 	{
-		if(val & PWM_input)
-		{
-			gPwmStart = Timer1_Count();
-		}
-		else //save active duration
-		{
-			gPwmValue = Timer1_Count() - gPwmStart;
-
-			InEvents_Disable();
-
-			gPwmReady = 1;
-		}
-	}
-
-	if(change & TwoOne_mode)
-	{
-		gTwoOneMode = (val & TwoOne_mode);
+		gTwoOneMode = (val & TwoOne_Switch);
 	}
 }
 
-/* Timer0 interrupt handler */
-//ISR( TIMER0_OVF_vect )
-//{
-//}
-
-/* Timer0 interrupt handler */
-//ISR( TIMER0_COMPA_vect )
-//{
-//}
-
-//ISR( TIMER0_COMPB_vect )
-//{
-//}
-
-/* Timer1 interrupt handler */
-//ISR( TIMER1_OVF_vect ) //eac
-//{
-//	++gTimer1;
-//}
-
-/* Timer1 interrupt handler */
-//ISR( TIMER1_COMPA_vect ) //happens each 500uS or at 2000Hz
-//{
-//}
-
-/* Timer1 interrupt handler */
-//ISR( TIMER1_COMPB_vect )
-//{
-//}
-
-// ADC interrupt service routine
-//ISR( ADC_vect ) // this gets executed at about 2000 Hz
-//{
-//}
-
-//watchdog timer interrupt as 2-1 mode driver
-// prescaler 128K => 1 sec period
-/* Watchdog interrupt handler */
-ISR( WDT_vect )
+// Timer1 interrupt handler
+ISR( TIMER1_COMPA_vect ) //each 1s
 {
-    wdt_reset();
-
-    if(gTwoOneMode)
+	if(gTwoOneMode)
 	{
 		++gTime;
 
-		switch(gTime & 3)
+		if(gTime < TwoOne_Out)
 		{
-		case 0:
-		case 1:
 			Wire_Out();
-			break;
-
-		case 2:
+		}
+		else if(gTime < TwoOne_In)
+		{
 			Wire_In();
-			break;
-
-		default:
+		}
+		else
+		{
 			Wire_Out();
-			++gTime;
-			break;
+			gTime = 0;
 		}
 	}
+
+	ADC_start();
+}
+
+// Timer1 interrupt handler
+ISR( TIMER1_COMPB_vect ) //each 1s, phase shifted from TIMER1_COMPA_vect
+{
+	ADC_start();
+}
+
+// ADC interrupt service routine
+ISR( ADC_vect )
+{
+	uint8_t val = ADCH;
+
+	if(gSpeedSet)
+	{
+		val >>= 1; //divide by 2
+
+		//sliding average
+		gSpeedSet = (gSpeedSet >> 1) + val;
+	}
+	else
+	{
+		gSpeedSet = val; //initialize
+	}
+
+	Motor_SetSpeed(gSpeedSet);
 }
 
 int main( void )
 {
-//    WDTimer_Init();
-
     setup(); //setup ports
 
     InEvents_Enable();
 
-	gTwoOneMode = TwoOne_mode & InEvents_Read();
+	gTwoOneMode = (TwoOne_Switch & InEvents_Read());
 
+	Motor_On();
 	Wire_Out();
     Motor_SetSpeed(MinSpeed);
 
     for(;;)
     {
-    	if(gPwmReady)
-    	{
-    		gPwmReady = 0;
-
-    		gPwmValue += (MinSpeed - 20);
-
-    		if(gPwmValue < MinSpeed)
-    		{
-    			gPwmValue = MinSpeed;
-    		}
-
-    		if(MaxSpeed < gPwmValue)
-    		{
-    			gPwmValue = MaxSpeed;
-    		}
-
-//    		gPwmValue = 250;
-
-    		Motor_SetSpeed(gPwmValue);
-
-    		InEvents_Enable();
-    	}
     }
 
     return 0;
@@ -193,41 +136,29 @@ int main( void )
 
 inline void setup()
 {
-    CLKPR = _BV(CLKPCE); //enable Clock Prescale Register write
-    CLKPR = 0;           // change prescaler to 1, effectively set 8MHz system clock
-
     DDRB |= _BV(DDB2) | _BV(DDB1) | _BV(DDB0); /* set PBx to output */
 
     //PB5 - Reset (can be reused as separate pin later)
 
+    // ADC Voltage Reference: internal 2.56V
+    // ADC High Speed Mode: Off
+    ADMUX = ( ADC_Left_Justified | ADC_InSpeed | ADC_VRef_2v56 );
+
+    // ADC Enabled
+    // ADC Clock frequency: prescaler 16, F_OSC/16 = 62.5KHz, conversion time 208us
+    ADCSRA |= _BV( ADEN ) | _BV( ADIE ) | _BV( ADPS2 );
+
     //Timer0 step signal driver
     TCCR0A = _BV(COM0A0) | _BV(WGM01); //PB0 output, Mode 2: CTC
-    TCCR0B = _BV(CS02) | _BV(CS00); //prescaler 1024
-    OCR0A  = 0xff; //compare to TCNT0 to set output on PB0
+    TCCR0B = _BV(CS01); //prescaler 8
+    OCR0A  = 0xff; //compare to TCNT0 to toggle output on PB0
 
-    //Timer1 overflow each 512us
-    TCCR1 = _BV(CS12) | _BV(CS10); //Mode 0; prescaler 16
-    //TIMSK |= _BV(TOIE1); //enable overflow interrupt
-
-    sei();
-}
-
-void WDTimer_Init()
-{
-    cli();
-
-	wdt_disable();
-
-    wdt_reset();
-
-    // Use Timed Sequence for disabling Watchdog System Reset Mode if it has been enabled unintentionally.
-    MCUSR = 0;
-
-    WDTCR = _BV(WDCE) | _BV(WDE); // Enable configuration change.
-
-    WDTCR = _BV(WDIF) | _BV(WDIE) // Enable Watchdog Interrupt Mode.
-          | _BV(WDCE) | _BV(WDE)  // Disable Watchdog System Reset Mode if unintentionally enabled.
-		  | _BV(WDP2) | _BV(WDP1);// Set Watchdog Timeout period to 1s.
+    //Timer1 CTC
+    TCCR1 = _BV(CTC1) | _BV(CS13) | _BV(CS12) | _BV(CS11) | _BV(CS10); //Mode 2; CTC prescaler 16384
+    TIMSK |= _BV(OCIE1A) | _BV(OCIE1B); //enable Compare Match A and B interrupts
+    OCR1A  = Timer1_A;  //to get interrupt A
+    OCR1B  = Timer1_B;  //to get interrupt B
+    OCR1C  = Timer1_C;  //CTC reload value
 
     sei();
 }

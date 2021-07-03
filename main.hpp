@@ -1,5 +1,26 @@
-#ifndef MAIN_H
-#define MAIN_H
+/*
+ * main.hpp
+ *
+ * Copyright (c) 2021 Yulay Rakhmangulov.
+ *
+ * Schematics and PCB design can be found here:
+ *       https://easyeda.com/Yulay/nissan-cd-changer-emulator
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef MAIN_HPP
+#define MAIN_HPP
 
 /*
 
@@ -21,31 +42,32 @@ Outputs:
 Running on internal 8 MHz oscillator
 
 Oscillator Freq = 8 MHz
-Main prescaler = 1
+Main prescaler = 8
 
-CPU Frequency 8 MHz
+F_CPU 1 MHz
 
-Timer0 8MHz / 1024 = ~8 KHz : STEP driver / 2 / 2 = 2KHz max
+Timer0 1 MHz / 64 = 15625 Hz : STEP driver / 2 / x =  Hz max
 
-Timer1 8MHz / 16 = ~500 KHz : PWM measure
+Timer1 1 MHz / 16384 = ~61 Hz : 2-1 Mode driver /31 = ~2 Hz
 
 PB0 : STEP out
 PB1 : DIR out
 PB2 : /ENABLE out
 PB3 : 2-1 Mode input
-PB4 : PWM control input
+PB4 : control voltage input
 PB5 : /RESET input
 
 Motor controller A4988
 
 Timer0 step driver
-Timer1 used to measure PWD settings
-WDTimer used to drive 2-1 mode
+Timer1 used to drive 2-1 mode
+
+ADC2 : voltage proportional to PWM input
 
 */
 
 #ifndef F_CPU
-    #define F_CPU   (8000000/8)
+    #define F_CPU   (1000000)
 #endif
 
 #include <stdint.h>
@@ -56,61 +78,42 @@ WDTimer used to drive 2-1 mode
 
 enum
 {
-    InputAveraging      = 3,
+	TwoOne_Switch		= _BV(PB3),
 
-	TwoOne_mode		= _BV(PB3),
-	PWM_input		= _BV(PB4),
-
-	InEventsMask    = (PWM_input | TwoOne_mode),
-
-    ModeIdle,
-    ModeFastFeed,
-	ModePowerOn,
+	InEventsMask    = (TwoOne_Switch),
 
 	MinSpeed = 200,
-	MaxSpeed = 250,
-	// 253 -> 1.2 KHz
-	// 250 -> 646 Hz
+	MaxSpeed = 253,
 
+	ADC_VRef_2v56   	= (_BV(REFS2) | _BV(REFS1)), // 2.56V internal VREF without external capacitor
+	ADC_Left_Justified	= _BV(ADLAR),  //0x20 - left justified, so we can use ADCH as a 8 bit result
+	ADC_InSpeed 		= _BV(MUX1),
+
+	ADC_InSpeedMin = 77,  // 0.77V
+	ADC_InSpeedMax = 220, // 2.20V
+
+	Timer1_Freq = F_CPU / 16384, //Hz
+
+	Timer1_C = Timer1_Freq / 4,
+
+	Timer1_A = Timer1_C / 6,
+	Timer1_B = Timer1_A * 4,
+
+	TwoOne_Out = (Timer1_Freq / Timer1_C) * 2,
+	TwoOne_In  = (Timer1_Freq / Timer1_C) * 3,
 };
 
 
-inline void Timer0_Enable()
+inline void ADC_start()
 {
-//    PRR &= ~_BV(PRTIM0); //clock enable
-//    TIFR0 |= _BV(OCF0A);
-//    TIMSK0 |= _BV(OCIE0A);
+    // ADC Start conversion
+    ADCSRA |= _BV( ADSC );
 }
 
-inline void Timer0_Disable()
+inline void ADC_stop()
 {
-//    TIMSK0 &= ~_BV(OCIE0A);
-//	PRR |= _BV(PRTIM0); //clock disable
-}
-
-inline void Timer1_Enable()
-{
-//    PRR &= ~_BV(PRTIM1); //clock enable
-//    TIFR1 |= _BV(OCF1A);
-//    TIMSK1 |= _BV(OCIE1A);
-}
-
-inline void Timer1_Disable()
-{
-//    TIMSK1 &= ~_BV(OCIE1A);
-//    PRR |= _BV(PRTIM1); //clock disable
-}
-
-extern volatile uint8_t gTimer1;
-
-inline uint8_t Timer1_Count()
-{
-	return TCNT1;
-}
-
-inline void Timer1_Reset()
-{
-	TCNT1 = 0;
+    // ADC Stop conversion
+    ADCSRA &= ~_BV( ADSC );
 }
 
 
@@ -127,6 +130,11 @@ inline void Motor_On()
 inline void Motor_SetSpeed(uint8_t v)
 {
 	OCR0A = ~v; //max speed if v = 255
+
+	if(OCR0A < TCNT0)
+	{
+		TCNT0 = OCR0A - 1;
+	}
 }
 
 inline void Wire_In()
@@ -141,9 +149,9 @@ inline void Wire_Out()
 
 inline void InEvents_Enable()
 {
-    GIFR |= _BV(PCIF); //clear int flag
+    GIFR |= _BV(PCIF);     //clear int flag
     PCMSK |= InEventsMask; //set pin change interrupt mask
-    GIMSK |= _BV(PCIE);  //enable pin change interrupt
+    GIMSK |= _BV(PCIE);    //enable pin change interrupt
 }
 
 inline void InEvents_Disable()
@@ -156,23 +164,7 @@ inline uint8_t InEvents_Read()
 	return InEventsMask & (~PINB); //inversion logic
 }
 
-inline void SetLED(bool v)
-{
-	if(v)
-	{
-		PORTB |= _BV(PB1);
-	}
-	else
-	{
-		PORTB &= ~_BV(PB1);
-	}
-}
-
-inline void ToggleLED()
-{
-	PINB |= _BV(PB1);
-}
 
 
 
-#endif //MAIN_H
+#endif //MAIN_HPP
