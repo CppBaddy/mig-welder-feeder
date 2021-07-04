@@ -1,6 +1,6 @@
 # mig-welder-feeder
 MIG welder wire feeder using step motor. Provides precision control of speed. In-place replacement for PWM controlled DC motor.
-
+Also added 2-1 mode to help weld thin sheet metal (autobody work). Two seconds welding then one second wire retrive. Then two seconds welding and so on.
 
 Board schematics.
 ![Schematics](https://github.com/CppBaddy/mig-welder-feeder/blob/main/images/schematic.png?raw=true)
