@@ -8,6 +8,15 @@ Board schematics.
 Upgraded MIG welder.
 ![MIG welder upgraded to stepper motor](https://github.com/CppBaddy/mig-welder-feeder/blob/main/images/mig-welder-upgraded.jpg?raw=true)
 
+Removed DC motor and two gears.
+![Removed DC motor and gears](https://github.com/CppBaddy/mig-welder-feeder/blob/main/images/dc-motor-gears.jpg?raw=true)
+
+Stepper motor.
+![Stepper motor](https://github.com/CppBaddy/mig-welder-feeder/blob/main/images/stepper-motor.jpg?raw=true)
+
+Stepper motor model.
+![Stepper motor model](https://github.com/CppBaddy/mig-welder-feeder/blob/main/images/stepper-motor-model.jpg?raw=true)
+
 Motor adapter plate made from old PCB.
 ![Motor adapter plate from old PCB](https://github.com/CppBaddy/mig-welder-feeder/blob/main/images/motor-adapter-board.jpg?raw=true)
 

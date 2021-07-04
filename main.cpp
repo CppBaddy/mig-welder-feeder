@@ -22,10 +22,6 @@
 #include <stdbool.h>
 #include <stdnoreturn.h>
 
-#ifndef F_CPU
-    #define F_CPU   1000000
-#endif
-
 #include <avr/io.h>
 #include <avr/iotn85.h>
 #include <avr/interrupt.h>
@@ -125,6 +121,7 @@ int main( void )
 
     for(;;)
     {
+        //TODO sleep, keep Timers and ADC On. Allow pin change and timer interrupts to wake up 
     }
 
     return 0;

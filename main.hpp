@@ -79,8 +79,8 @@ enum
 
 	InEventsMask    = (TwoOne_Switch),
 
-	MinSpeed = 200,
-	MaxSpeed = 253,
+	MinSpeed = 200, // 2 m/min
+	MaxSpeed = 253, // 11 m/min
 
 	ADC_VRef_2v56   	= (_BV(REFS2) | _BV(REFS1)), // 2.56V internal VREF without external capacitor
 	ADC_Left_Justified	= _BV(ADLAR),  //0x20 - left justified, so we can use ADCH as a 8 bit result
