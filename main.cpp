@@ -48,6 +48,12 @@ ISR( PCINT0_vect )
 	if(change & TwoOne_Switch)
 	{
 		gTwoOneMode = (val & TwoOne_Switch);
+
+		if(!gTwoOneMode)
+		{
+			Wire_Out();
+			gTime = 0;
+		}
 	}
 }
 
