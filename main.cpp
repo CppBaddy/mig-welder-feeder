@@ -17,21 +17,16 @@
  */
 
 
+#include "main.hpp"
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <stdnoreturn.h>
 
-#include <avr/io.h>
-#include <avr/iotn85.h>
 #include <avr/interrupt.h>
 
 
-#include "main.hpp"
-
 void setup();
 
-static uint8_t gPrevInput;
+static volatile uint8_t gPrevInput;
 
 static volatile uint8_t gTwoOneMode;
 

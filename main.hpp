@@ -71,6 +71,7 @@ ADC2 : voltage proportional to PWM input
 #include <stdbool.h>
 
 #include <avr/io.h>
+#include <avr/iotn85.h>
 
 
 enum
@@ -158,7 +159,8 @@ inline void InEvents_Disable()
 
 inline uint8_t InEvents_Read()
 {
-	return InEventsMask & (~PINB); //inversion logic
+	return InEventsMask & PINB;
+//	return InEventsMask & (~PINB); //inverted logic
 }
 
 
