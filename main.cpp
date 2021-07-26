@@ -64,15 +64,19 @@ ISR( TIMER1_COMPA_vect ) //each 1s
 	{
 		++gTime;
 
-		if(gTime < TwoOne_Out)
+		if(gTime < TwoOne_Out) //feeding wire out, welding 2 sec
 		{
 			Wire_Out();
 		}
-		else if(gTime < TwoOne_In)
+		else if(gTime < TwoOne_In) //retract wire to interrupt welding 0.5 sec
 		{
 			Wire_In();
 		}
-		else
+		else if(gTime < TwoOne_Cooloff) //feed wire back where we were before 0.5 sec
+		{
+			Wire_Out();
+		}
+		else //start new cycle
 		{
 			Wire_Out();
 			gTime = 0;
@@ -116,8 +120,8 @@ int main( void )
 
 	gTwoOneMode = (TwoOne_Switch & InEvents_Read());
 
-	Motor_On();
 	Wire_Out();
+	Motor_On();
     Motor_SetSpeed(MinSpeed);
 
     for(;;)

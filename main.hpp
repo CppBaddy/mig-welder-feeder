@@ -90,15 +90,18 @@ enum
 	ADC_InSpeedMin = 77,  // 0.77V
 	ADC_InSpeedMax = 220, // 2.20V
 
-	Timer1_Freq = F_CPU / 16384, //Hz
+	Timer1_Freq = F_CPU / 16384, //61 Hz
 
-	Timer1_C = Timer1_Freq / 4,
+	Timer1_C = Timer1_Freq / 4, //15 timer1 Top => ~ 4 Hz
 
-	Timer1_A = Timer1_C / 6,
-	Timer1_B = Timer1_A * 4,
+	Timer1_A = Timer1_C / 6, //interrupt A phase
+	Timer1_B = Timer1_A * 4, //interrupt B phase
 
-	TwoOne_Out = (Timer1_Freq / Timer1_C) * 2,
-	TwoOne_In  = (Timer1_Freq / Timer1_C) * 3,
+
+	//gTime events
+	TwoOne_Out     = (Timer1_Freq / Timer1_C) * 2,
+	TwoOne_Cooloff = (Timer1_Freq / Timer1_C) * 3,
+	TwoOne_In      = (TwoOne_Out + TwoOne_Cooloff) / 2,
 };
 
 
